@@ -48,7 +48,7 @@ func TestProcessData(t *testing.T) {
 		},
 		{
 			name:           "Test Case 8: Combined Transformations",
-			inputText:      "There it was. A amazing rock! It has been 10 (bin) years. So exciting (up, 3)!",
+			inputText:      "There it was. A amazing rock! It has been 10 (bin) years. So exciting (up, 2)!",
 			expectedOutput: "There it was. An amazing rock! It has been 2 years. SO EXCITING!",
 		},
 		{

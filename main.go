@@ -204,6 +204,10 @@ func processQuotes(tokens []string) []string {
 }
 func processArticles(tokens []string) []string {
 	for i := 0; i < len(tokens); i++ {
+		cap := false
+		if tokens[i] == "A" {
+			cap = true
+		}
 		if strings.ToLower(tokens[i]) == "a" {
 			// Find the next non-space token
 			j := i + 1
@@ -213,7 +217,12 @@ func processArticles(tokens []string) []string {
 			if j < len(tokens) && isWord(tokens[j]) {
 				nextWord := strings.ToLower(tokens[j])
 				if startsWithVowelOrH(nextWord) {
-					tokens[i] = "an"
+					if !cap {
+						tokens[i] = "an"
+					} else {
+						tokens[i] = "An"
+					}
+
 				}
 			}
 		}
