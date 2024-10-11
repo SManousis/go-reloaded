@@ -14,40 +14,41 @@ func main() {
 		fmt.Println("Usage: go run main.go <input_file> <output_file>")
 		return
 	}
-
 	inputFileName := os.Args[1]
 	outputFileName := os.Args[2]
-
 	inputData, err := ioutil.ReadFile(inputFileName)
 	if err != nil {
 		fmt.Printf("Error reading input file: %v\n", err)
 		return
 	}
 	inputText := string(inputData)
-
 	tokens := tokenize(inputText)
+	fmt.Println("Tokens after tokenize:", tokens)
 	tokens = processHexBin(tokens)
+	fmt.Println("Tokens after processHexBin:", tokens)
 	tokens = processCaseTransform(tokens)
+	fmt.Println("Tokens after processCaseTransform:", tokens)
 	tokens = processQuotes(tokens)
+	fmt.Println("Tokens after processQuotes:", tokens)
 	tokens = processPunctuation(tokens)
+	fmt.Println("Tokens after processPunctuation:", tokens)
 	tokens = processArticles(tokens)
+	fmt.Println("Tokens after capitalizeSentences:", tokens)
+	//tokens = capitalizeSentences(tokens)
+	//tokens = capitalizeAfterPeriod(tokens)
 	outputText := reconstructText(tokens)
-
 	err = ioutil.WriteFile(outputFileName, []byte(outputText), 0644)
 	if err != nil {
 		fmt.Printf("Error writing output file: %v\n", err)
 		return
 	}
-
 	fmt.Println("Processing complete. Output written to", outputFileName)
 }
-
 func processData(input string) string {
 	return input
 }
-
 func tokenize(text string) []string {
-	pattern := `(\w+(?:'\w+)?)|(\([^)]+\))|[.,!?;:]+|'\s*|\s+'|\s+`
+	pattern := `(\w+(?:-\w+)*(?:'\w+)?)|(\([^)]+\))|[.,!?;:]+|'|\s+`
 	regex := regexp.MustCompile(pattern)
 	tokens := regex.FindAllString(text, -1)
 	return tokens
@@ -72,13 +73,14 @@ func processHexBin(tokens []string) []string {
 				number, err := strconv.ParseUint(prevToken, base, 64)
 				if err == nil {
 					tokens[j] = strconv.FormatUint(number, 10)
-					tokens = append(tokens[:i], tokens[i+1:]...)
-					i--
-				} else {
-					fmt.Printf("Error parsing number '%s' with base %d: %v\n", prevToken, base, err)
 				}
+				// Remove the tag and any spaces before/after
+				tokens = removeTokenAndSpaces(tokens, i)
+				i = j // Reset i to the position before the tag
 			} else {
-				fmt.Printf("No valid token before '%s' to convert.\n", token)
+				// Remove the tag if no valid token before it
+				tokens = removeTokenAndSpaces(tokens, i)
+				i--
 			}
 		}
 		i++
@@ -88,10 +90,15 @@ func processHexBin(tokens []string) []string {
 
 func processCaseTransform(tokens []string) []string {
 	i := 0
+	inQuote := false
 	for i < len(tokens) {
 		token := tokens[i]
 
-		// Check if the token is a transformation tag
+		// Toggle inQuote flag when encountering a quote
+		if token == "'" {
+			inQuote = !inQuote
+		}
+
 		if strings.HasPrefix(token, "(") && strings.HasSuffix(token, ")") {
 			content := token[1 : len(token)-1]
 			parts := strings.Split(content, ",")
@@ -100,27 +107,31 @@ func processCaseTransform(tokens []string) []string {
 			if len(parts) > 1 {
 				count, _ = strconv.Atoi(strings.TrimSpace(parts[1]))
 			}
-
-			// Apply transformation to the specified number of previous non-space tokens
-			transformed := 0
-			j := i - 1
-			for transformed < count && j >= 0 {
-				if strings.TrimSpace(tokens[j]) != "" && isWord(tokens[j]) {
-					switch action {
-					case "up":
-						tokens[j] = strings.ToUpper(tokens[j])
-					case "low":
-						tokens[j] = strings.ToLower(tokens[j])
-					case "cap":
-						tokens[j] = strings.Title(strings.ToLower(tokens[j]))
+			// Apply transformation only if not inside quotes
+			if !inQuote {
+				transformed := 0
+				j := i - 1
+				tempInQuote := inQuote
+				for transformed < count && j >= 0 {
+					if tokens[j] == "'" {
+						tempInQuote = !tempInQuote
 					}
-					transformed++
+					if !tempInQuote && strings.TrimSpace(tokens[j]) != "" && isWord(tokens[j]) {
+						switch action {
+						case "up":
+							tokens[j] = strings.ToUpper(tokens[j])
+						case "low":
+							tokens[j] = strings.ToLower(tokens[j])
+						case "cap":
+							tokens[j] = strings.Title(strings.ToLower(tokens[j]))
+						}
+						transformed++
+					}
+					j--
 				}
-				j--
 			}
-
-			// Remove the tag token
-			tokens = append(tokens[:i], tokens[i+1:]...)
+			// Remove the tag regardless of whether we're inside quotes
+			tokens = removeTokenAndSpaces(tokens, i)
 			i-- // Adjust index after removing element
 		}
 		i++
@@ -133,14 +144,18 @@ func processPunctuation(tokens []string) []string {
 	for i := 0; i < len(tokens); i++ {
 		token := tokens[i]
 		if isPunctuation(token) {
-
+			// Remove space before punctuation
 			if len(result) > 0 && result[len(result)-1] == " " {
 				result = result[:len(result)-1]
 			}
 			result = append(result, token)
-
-			if i+1 < len(tokens) && tokens[i+1] != " " {
-				result = append(result, " ")
+			// Add space after punctuation if necessary
+			if i+1 < len(tokens) && tokens[i+1] != " " && !isPunctuation(tokens[i+1]) {
+				if token == "," || token == ":" || token == ";" {
+					// Add space after commas, colons, and semicolons
+					result = append(result, " ")
+				}
+				// Do not add space after periods, exclamation marks, question marks
 			}
 		} else {
 			result = append(result, token)
@@ -156,11 +171,9 @@ func processQuotes(tokens []string) []string {
 	for i < len(tokens) {
 		token := tokens[i]
 		trimmedToken := strings.TrimSpace(token)
-
 		if trimmedToken == "'" {
 			// Toggle the inQuote flag
 			inQuote = !inQuote
-
 			if inQuote {
 				// Opening quote
 				if len(result) > 0 && result[len(result)-1] == " " {
@@ -189,7 +202,6 @@ func processQuotes(tokens []string) []string {
 	}
 	return result
 }
-
 func processArticles(tokens []string) []string {
 	for i := 0; i < len(tokens); i++ {
 		if strings.ToLower(tokens[i]) == "a" {
@@ -208,38 +220,84 @@ func processArticles(tokens []string) []string {
 	}
 	return tokens
 }
-
 func reconstructText(tokens []string) string {
 	var builder strings.Builder
 	for i, token := range tokens {
-		// Determine if a space is needed
-		needSpace := i > 0 &&
-			token != " " &&
-			tokens[i-1] != " " &&
-			!isPunctuation(token) &&
-			!isPunctuation(tokens[i-1]) &&
-			token != "'" &&
-			tokens[i-1] != "'"
+		if i > 0 {
+			prevToken := tokens[i-1]
+			// Determine if a space is needed
+			needSpace := true
 
-		if needSpace {
-			builder.WriteString(" ")
+			if token == " " || prevToken == " " {
+				needSpace = false
+			} else if isPunctuation(token) || isPunctuation(prevToken) || token == "'" || prevToken == "'" {
+				needSpace = false
+			}
+
+			if needSpace {
+				builder.WriteString(" ")
+			}
 		}
 		builder.WriteString(token)
 	}
-	// Trim any leading or trailing whitespace
-	return strings.TrimSpace(builder.String())
+	return builder.String()
 }
 
 func isWord(token string) bool {
 	return regexp.MustCompile(`^\w+(?:'\w+)?$`).MatchString(token)
 }
-
 func startsWithVowelOrH(word string) bool {
 	return strings.HasPrefix(word, "a") || strings.HasPrefix(word, "e") ||
 		strings.HasPrefix(word, "i") || strings.HasPrefix(word, "o") ||
 		strings.HasPrefix(word, "u") || strings.HasPrefix(word, "h")
 }
-
 func isPunctuation(token string) bool {
 	return regexp.MustCompile(`^[.,!?;:]+$`).MatchString(token)
+}
+
+//	func capitalizeAfterPeriod(tokens []string) []string {
+//	 capitalizeNext := true
+//
+//	for i, token := range tokens {
+//	 if isWord(token) && capitalizeNext {
+//	   tokens[i] = strings.Title(strings.ToLower(token))
+//	 capitalizeNext = false
+//	} else if token == "." {
+//
+//	 capitalizeNext = true
+//	}
+//
+// }
+// return tokens
+// }
+//
+//	func capitalizeSentences(tokens []string) []string {
+//		capitalizeNext := true
+//		for i := 0; i < len(tokens); i++ {
+//			token := tokens[i]
+//			if isWord(token) && capitalizeNext {
+//				tokens[i] = strings.Title(strings.ToLower(token))
+//				capitalizeNext = false
+//			} else if token == "." || token == "!" || token == "?" {
+//				capitalizeNext = true
+//			} else if token != " " && !isWord(token) {
+//				// Reset capitalization flag after other punctuation
+//				capitalizeNext = false
+//			}
+//		}
+//		return tokens
+//	}
+func removeTokenAndSpaces(tokens []string, index int) []string {
+	// Remove any spaces before the token
+	if index > 0 && tokens[index-1] == " " {
+		tokens = append(tokens[:index-1], tokens[index:]...)
+		index--
+	}
+	// Remove the token
+	tokens = append(tokens[:index], tokens[index+1:]...)
+	// Remove any spaces after the token
+	if index < len(tokens) && tokens[index] == " " {
+		tokens = append(tokens[:index], tokens[index+1:]...)
+	}
+	return tokens
 }
