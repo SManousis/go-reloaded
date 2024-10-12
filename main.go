@@ -23,19 +23,11 @@ func main() {
 	}
 	inputText := string(inputData)
 	tokens := tokenize(inputText)
-	fmt.Println("Tokens after tokenize:", tokens)
 	tokens = processHexBin(tokens)
-	fmt.Println("Tokens after processHexBin:", tokens)
 	tokens = processCaseTransform(tokens)
-	fmt.Println("Tokens after processCaseTransform:", tokens)
 	tokens = processQuotes(tokens)
-	fmt.Println("Tokens after processQuotes:", tokens)
 	tokens = processPunctuation(tokens)
-	fmt.Println("Tokens after processPunctuation:", tokens)
 	tokens = processArticles(tokens)
-	fmt.Println("Tokens after capitalizeSentences:", tokens)
-	//tokens = capitalizeSentences(tokens)
-	//tokens = capitalizeAfterPeriod(tokens)
 	outputText := reconstructText(tokens)
 	err = ioutil.WriteFile(outputFileName, []byte(outputText), 0644)
 	if err != nil {
@@ -264,38 +256,6 @@ func isPunctuation(token string) bool {
 	return regexp.MustCompile(`^[.,!?;:]+$`).MatchString(token)
 }
 
-//	func capitalizeAfterPeriod(tokens []string) []string {
-//	 capitalizeNext := true
-//
-//	for i, token := range tokens {
-//	 if isWord(token) && capitalizeNext {
-//	   tokens[i] = strings.Title(strings.ToLower(token))
-//	 capitalizeNext = false
-//	} else if token == "." {
-//
-//	 capitalizeNext = true
-//	}
-//
-// }
-// return tokens
-// }
-//
-//	func capitalizeSentences(tokens []string) []string {
-//		capitalizeNext := true
-//		for i := 0; i < len(tokens); i++ {
-//			token := tokens[i]
-//			if isWord(token) && capitalizeNext {
-//				tokens[i] = strings.Title(strings.ToLower(token))
-//				capitalizeNext = false
-//			} else if token == "." || token == "!" || token == "?" {
-//				capitalizeNext = true
-//			} else if token != " " && !isWord(token) {
-//				// Reset capitalization flag after other punctuation
-//				capitalizeNext = false
-//			}
-//		}
-//		return tokens
-//	}
 func removeTokenAndSpaces(tokens []string, index int) []string {
 	// Remove any spaces before the token
 	if index > 0 && tokens[index-1] == " " {
