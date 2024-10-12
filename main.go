@@ -36,9 +36,6 @@ func main() {
 	}
 	fmt.Println("Processing complete. Output written to", outputFileName)
 }
-func processData(input string) string {
-	return input
-}
 func tokenize(text string) []string {
 	pattern := `(\w+(?:-\w+)*(?:'\w+)?)|(\([^)]+\))|[.,!?;:]+|'|\s+`
 	regex := regexp.MustCompile(pattern)
